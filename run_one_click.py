@@ -4,30 +4,19 @@
 from __future__ import annotations
 
 import argparse
-import json
 import subprocess
 import sys
-import threading
-import webbrowser
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Dict
+from typing import Optional
 
-import sys
 import os
+import sys
 
 # Add src to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from wjp_analyser.analysis.dxf_analyzer import AnalyzeArgs as Args, analyze_dxf as analyze
-from cli.main import command_gcode
-from tools.make_sample_dxf import make_sample
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 REPO_ROOT = Path(__file__).resolve().parent
 REQUIREMENTS = REPO_ROOT / "requirements.txt"
-DEFAULT_OUT = REPO_ROOT / "oneclick_out"
-
-
 def install_dependencies(skip: bool, upgrade: bool) -> None:
     """Install project requirements unless explicitly skipped."""
     if skip:
@@ -50,110 +39,12 @@ def install_dependencies(skip: bool, upgrade: bool) -> None:
     print("[setup] Dependencies ready.")
 
 
-def ensure_sample_dxf() -> Path:
-    """Ensure a sample DXF is available for the demo pipeline."""
-    sample_dir = REPO_ROOT / "data" / "samples" / "dxf"
-    sample_path = sample_dir / "medallion_sample.dxf"
-    if not sample_path.exists():
-        sample_dir.mkdir(parents=True, exist_ok=True)
-        make_sample(str(sample_path))
-        print(f"[demo] Created sample DXF at {sample_path}")
-    return sample_path
-
-
-def run_sample_analysis(dxf_path: Path, output_dir: Path) -> Dict[str, float]:
-    """Run the analysis pipeline (demo mode)."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    args = Args(
-        material="Tan Brown Granite",
-        thickness=25.0,
-        kerf=1.1,
-        rate_per_m=825.0,
-        out=str(output_dir),
-        use_advanced_toolpath=True,
-        rapid_speed=10000.0,
-        cutting_speed=1200.0,
-        pierce_time=0.5,
-        optimize_rapids=True,
-        optimize_direction=True,
-        entry_strategy="tangent",
-        # Pierce-reduction preset
-        soften_method="simplify",
-        soften_tolerance=0.10,
-        fillet_radius_mm=0.50,
-        fillet_min_angle_deg=120.0,
-        # Normalize to a standard frame for predictable sizing
-        normalize_mode="fit",
-        target_frame_w_mm=1000.0,
-        target_frame_h_mm=1000.0,
-        frame_margin_mm=0.0,
-        normalize_origin=True,
-        require_fit_within_frame=True,
-    )
-    analyze(str(dxf_path), args)
-
-    report_path = output_dir / "report.json"
-    if report_path.exists():
-        try:
-            data = json.loads(report_path.read_text(encoding="utf-8"))
-            return data.get("metrics", {})
-        except json.JSONDecodeError:
-            print("[demo] Warning: could not parse report.json")
-    return {}
-
-
-def run_sample_gcode(dxf_path: Path, output_dir: Path) -> None:
-    """Emit toy G-code for the demo pipeline."""
-    params = SimpleNamespace(
-        dxf=str(dxf_path),
-        feed=1200.0,
-        m_on="M62",
-        m_off="M63",
-        pierce_ms=500,
-        out=str(output_dir),
-    )
-    command_gcode(params)
-
-
-def maybe_open_preview(output_dir: Path) -> None:
-    preview = output_dir / "preview.png"
-    if preview.exists():
-        try:
-            webbrowser.open(preview.resolve().as_uri())
-            print(f"[demo] Opened preview image -> {preview}")
-        except Exception as exc:  # pragma: no cover - best effort
-            print(f"[demo] Could not open preview automatically: {exc}")
-
-
 def run_demo(skip_install: bool, upgrade: bool, open_preview: bool) -> None:
-    install_dependencies(skip_install, upgrade)
-    dxf_path = ensure_sample_dxf()
-    output_dir = DEFAULT_OUT
-
-    print("[demo] Running DXF analysis...")
-    metrics = run_sample_analysis(dxf_path, output_dir)
-
-    print("[demo] Generating toy G-code...")
-    run_sample_gcode(dxf_path, output_dir)
-
-    print("\n[demo] Results ready in 'oneclick_out':")
-    print(f"  report.json -> {output_dir / 'report.json'}")
-    print(f"  preview.png -> {output_dir / 'preview.png'}")
-    print(f"  program.nc -> {output_dir / 'program.nc'}")
-
-    if metrics:
-        outer_mm = metrics.get("length_outer_mm", 0.0)
-        inner_mm = metrics.get("length_internal_mm", 0.0)
-        pierces = metrics.get("pierces", 0)
-        cost = metrics.get("cost_inr", 0.0)
-        print("\n[demo] Key metrics:")
-        print(f"  Outer length: {outer_mm:.1f} mm")
-        print(f"  Internal length: {inner_mm:.1f} mm")
-        print(f"  Pierces: {pierces}")
-        print(f"  Estimated cost: INR {cost:.0f}")
-
+    """Placeholder demo runner shown when the original pipeline is unavailable."""
+    print("[demo] The full demo pipeline is not bundled with this lightweight build.")
+    print("[demo] Launch the UI mode instead to explore the Streamlit preview.")
     if open_preview:
-        maybe_open_preview(output_dir)
+        print("[demo] Preview assets are not generated in this mode.")
 
 
 def _streamlit_command() -> list[str]:
@@ -167,9 +58,16 @@ def _streamlit_command() -> list[str]:
     return [sys.executable, "-m", "streamlit"]
 
 
-def launch_streamlit_unified(host: str, port: int, no_browser: bool, guided: bool = False, batch_guided: bool = False) -> int:
+def launch_streamlit_unified(
+    host: str,
+    port: int,
+    no_browser: bool,
+    guided: bool = False,
+    batch_guided: bool = False,
+    config: Optional[Path] = None,
+) -> int:
     repo_root = os.path.dirname(__file__)
-    script_path = os.path.join(repo_root, "src", "wjp_analyser", "web", "unified_web_app.py")
+    script_path = os.path.join(repo_root, "src", "wjp_analyser", "web", "streamlit_app.py")
     if not os.path.exists(script_path):
         print(f"[ui] Streamlit app not found at {script_path}.")
         return 1
@@ -182,6 +80,17 @@ def launch_streamlit_unified(host: str, port: int, no_browser: bool, guided: boo
     ]
     if no_browser:
         cmd.extend(["--server.headless", "true"])
+
+    script_flags: list[str] = []
+    if guided:
+        script_flags.append("--guided")
+    if batch_guided:
+        script_flags.append("--batch-guided")
+    if config is not None:
+        script_flags.extend(["--config", str(config)])
+    if script_flags:
+        cmd.append("--")
+        cmd.extend(script_flags)
 
     env = os.environ.copy()
     env.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "0")
@@ -203,37 +112,37 @@ def launch_streamlit_unified(host: str, port: int, no_browser: bool, guided: boo
 
 
 def launch_web_ui(host: str, port: int, open_browser: bool) -> None:
-    """Launch the Flask web UI using the existing runner helpers."""
-    from wjp_analyser.web.app import app as flask_app
-    
-    def wait_and_open(url: str) -> None:
-        import time
-        try:
-            time.sleep(1.5)
-            webbrowser.open(url)
-        except Exception:
-            pass
-
+    """Legacy Flask UI placeholder when the backend is unavailable."""
     url = f"http://{host}:{port}/"
-    print("[ui] Starting Waterjet DXF Analyzer web UI...")
-    print(f"[ui] Listening on {url}")
-
+    print("[ui] The Flask-based interface is not bundled with this build.")
+    print("[ui] Use --ui-backend streamlit to launch the available preview instead.")
     if open_browser:
-        opener = threading.Thread(target=wait_and_open, args=(url,), daemon=True)
-        opener.start()
-
-    try:
-        flask_app.run(host=host, port=port, debug=False, use_reloader=False)
-    except KeyboardInterrupt:
-        print("\n[ui] Stopping web server...")
+        print(f"[ui] Requested browser launch skipped for unavailable endpoint at {url}.")
 
 
-def run_ui(skip_install: bool, upgrade: bool, host: str, port: int, no_browser: bool, ui_backend: str, guided: bool = False, batch_guided: bool = False) -> None:
+def run_ui(
+    skip_install: bool,
+    upgrade: bool,
+    host: str,
+    port: int,
+    no_browser: bool,
+    ui_backend: str,
+    guided: bool = False,
+    batch_guided: bool = False,
+    config: Optional[Path] = None,
+) -> None:
     install_dependencies(skip_install, upgrade)
     if ui_backend == "flask":
         launch_web_ui(host=host, port=port, open_browser=not no_browser)
     else:
-        launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=guided, batch_guided=batch_guided)
+        launch_streamlit_unified(
+            host=host,
+            port=port,
+            no_browser=no_browser,
+            guided=guided,
+            batch_guided=batch_guided,
+            config=config,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -283,22 +192,50 @@ def parse_args() -> argparse.Namespace:
         default="streamlit",
         help="Choose UI backend for --mode ui (default: streamlit).",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Optional JSON configuration to preload into the Streamlit UI.",
+    )
+    parser.add_argument(
+        "--guided-ui",
+        action="store_true",
+        help="Enable guided walkthrough hints when using --mode ui.",
+    )
+    parser.add_argument(
+        "--batch-guided-ui",
+        action="store_true",
+        help="Highlight batch processing hints when using --mode ui.",
+    )
     return parser.parse_args()
 
 
-def launch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+def launch_guided_interface(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print(f"[guided] Starting Guided Individual Interface on {host}:{port}")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=True)
+    launch_streamlit_unified(
+        host=host,
+        port=port,
+        no_browser=no_browser,
+        guided=True,
+        config=config,
+    )
 
 
-def launch_batch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+def launch_batch_guided_interface(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print(f"[batch-guided] Starting Guided Batch Interface on {host}:{port}")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, batch_guided=True)
+    launch_streamlit_unified(
+        host=host,
+        port=port,
+        no_browser=no_browser,
+        batch_guided=True,
+        config=config,
+    )
 
 
-def launch_all_interfaces(host: str, port: int, no_browser: bool) -> None:
+def launch_all_interfaces(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print("[all-interfaces] Deprecated: launching unified Streamlit app instead.")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser)
+    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, config=config)
 
 
 def main() -> int:
@@ -308,10 +245,10 @@ def main() -> int:
         run_demo(args.skip_install, args.upgrade, args.open_preview)
     elif args.mode == "guided":
         install_dependencies(args.skip_install, args.upgrade)
-        launch_guided_interface(args.host, args.port, args.no_browser)
+        launch_guided_interface(args.host, args.port, args.no_browser, config=args.config)
     elif args.mode == "batch-guided":
         install_dependencies(args.skip_install, args.upgrade)
-        launch_batch_guided_interface(args.host, args.port, args.no_browser)
+        launch_batch_guided_interface(args.host, args.port, args.no_browser, config=args.config)
     else:
         run_ui(
             args.skip_install,
@@ -320,8 +257,9 @@ def main() -> int:
             args.port,
             args.no_browser,
             ui_backend=args.ui_backend,
-            guided=False,
-            batch_guided=False,
+            guided=args.guided_ui,
+            batch_guided=args.batch_guided_ui,
+            config=args.config,
         )
 
     return 0

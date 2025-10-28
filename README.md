@@ -123,6 +123,41 @@ python -m src.wjp_analyser.cli.analyze_cli --input sample.dxf --output results/
 python -m src.wjp_analyser.cli.batch_analyze --input-dir dxf_files/ --output-dir results/
 ```
 
+## 🧪 Testing & Previewing
+
+### Automated Test Suite
+The repository bundles lightweight smoke tests that validate the launcher and placeholder
+modules. Install the dependencies (or reuse an existing virtual environment) and run:
+
+```bash
+pytest
+```
+
+All tests should pass; a skipped check is expected when optional integrations are missing.
+
+### Launch the Streamlit Preview
+You can exercise the interactive preview without running the legacy pipelines. The
+`--skip-install` flag is helpful when dependencies are already satisfied, and
+`--no-browser` keeps Streamlit from opening a window automatically:
+
+```bash
+python run_one_click.py --mode ui --skip-install --no-browser --host 127.0.0.1 --port 8501
+```
+
+Press `Ctrl+C` when you are done exploring to shut the server down cleanly. The same
+preview can also be launched directly with Streamlit if you prefer:
+
+```bash
+python -m streamlit run src/wjp_analyser/web/streamlit_app.py --server.headless true --server.address 0.0.0.0 --server.port 8501
+```
+
+Use `--guided` or `--batch-guided` after a `--` separator to toggle the onboarding hints in
+the preview UI. For example:
+
+```bash
+python -m streamlit run src/wjp_analyser/web/streamlit_app.py -- --guided
+```
+
 ## 📖 Usage
 
 ### 1. DXF Analysis Workflow
