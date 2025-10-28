@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import inspect
+import sys
 from typing import Iterable, Tuple
 
 import pytest
@@ -71,3 +72,74 @@ def test_unified_entry_point_exposes_application_class() -> None:
         assert hasattr(unified_cls, method_name), (
             f"WJPUnifiedApp missing expected method '{method_name}'"
         )
+
+
+def test_run_one_click_parse_args_handles_new_flags(monkeypatch, tmp_path) -> None:
+    """Ensure the one-click launcher exposes the new convenience flags."""
+
+    cfg_path = tmp_path / "config.json"
+    argv = [
+        "run_one_click.py",
+        "--mode",
+        "ui",
+        "--config",
+        str(cfg_path),
+        "--guided-ui",
+        "--batch-guided-ui",
+    ]
+    monkeypatch.setattr(sys, "argv", argv)
+
+    from run_one_click import parse_args
+
+    parsed = parse_args()
+    assert parsed.config == cfg_path
+    assert parsed.guided_ui is True
+    assert parsed.batch_guided_ui is True
+
+
+def test_launch_streamlit_unified_forwards_flags(monkeypatch, tmp_path) -> None:
+    """Verify Streamlit launcher propagates CLI flags to the subprocess."""
+
+    import run_one_click
+
+    captured: dict[str, object] = {}
+
+    def fake_run(cmd, check, env):
+        captured["cmd"] = cmd
+        captured["env"] = env
+
+        class Result:
+            returncode = 0
+
+        return Result()
+
+    monkeypatch.setattr(run_one_click, "_streamlit_command", lambda: ["streamlit"])
+    monkeypatch.setattr(run_one_click.subprocess, "run", fake_run)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text("{}", encoding="utf-8")
+
+    exit_code = run_one_click.launch_streamlit_unified(
+        host="0.0.0.0",
+        port=9999,
+        no_browser=True,
+        guided=True,
+        batch_guided=True,
+        config=config_path,
+    )
+
+    assert exit_code == 0
+    cmd = list(captured["cmd"])
+    env = dict(captured["env"])
+
+    assert "--server.headless" in cmd
+    assert "--" in cmd
+    dash_index = cmd.index("--")
+    assert cmd[dash_index + 1 : dash_index + 5] == [
+        "--guided",
+        "--batch-guided",
+        "--config",
+        str(config_path),
+    ]
+    assert env.get("WJP_GUIDED_MODE") == "true"
+    assert env.get("WJP_BATCH_GUIDED_MODE") == "true"

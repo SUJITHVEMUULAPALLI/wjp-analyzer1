@@ -7,9 +7,10 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
-import sys
 import os
+import sys
 
 # Add src to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -63,6 +64,7 @@ def launch_streamlit_unified(
     no_browser: bool,
     guided: bool = False,
     batch_guided: bool = False,
+    config: Optional[Path] = None,
 ) -> int:
     repo_root = os.path.dirname(__file__)
     script_path = os.path.join(repo_root, "src", "wjp_analyser", "web", "streamlit_app.py")
@@ -84,6 +86,8 @@ def launch_streamlit_unified(
         script_flags.append("--guided")
     if batch_guided:
         script_flags.append("--batch-guided")
+    if config is not None:
+        script_flags.extend(["--config", str(config)])
     if script_flags:
         cmd.append("--")
         cmd.extend(script_flags)
@@ -116,12 +120,29 @@ def launch_web_ui(host: str, port: int, open_browser: bool) -> None:
         print(f"[ui] Requested browser launch skipped for unavailable endpoint at {url}.")
 
 
-def run_ui(skip_install: bool, upgrade: bool, host: str, port: int, no_browser: bool, ui_backend: str, guided: bool = False, batch_guided: bool = False) -> None:
+def run_ui(
+    skip_install: bool,
+    upgrade: bool,
+    host: str,
+    port: int,
+    no_browser: bool,
+    ui_backend: str,
+    guided: bool = False,
+    batch_guided: bool = False,
+    config: Optional[Path] = None,
+) -> None:
     install_dependencies(skip_install, upgrade)
     if ui_backend == "flask":
         launch_web_ui(host=host, port=port, open_browser=not no_browser)
     else:
-        launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=guided, batch_guided=batch_guided)
+        launch_streamlit_unified(
+            host=host,
+            port=port,
+            no_browser=no_browser,
+            guided=guided,
+            batch_guided=batch_guided,
+            config=config,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -171,22 +192,50 @@ def parse_args() -> argparse.Namespace:
         default="streamlit",
         help="Choose UI backend for --mode ui (default: streamlit).",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="Optional JSON configuration to preload into the Streamlit UI.",
+    )
+    parser.add_argument(
+        "--guided-ui",
+        action="store_true",
+        help="Enable guided walkthrough hints when using --mode ui.",
+    )
+    parser.add_argument(
+        "--batch-guided-ui",
+        action="store_true",
+        help="Highlight batch processing hints when using --mode ui.",
+    )
     return parser.parse_args()
 
 
-def launch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+def launch_guided_interface(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print(f"[guided] Starting Guided Individual Interface on {host}:{port}")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, guided=True)
+    launch_streamlit_unified(
+        host=host,
+        port=port,
+        no_browser=no_browser,
+        guided=True,
+        config=config,
+    )
 
 
-def launch_batch_guided_interface(host: str, port: int, no_browser: bool) -> None:
+def launch_batch_guided_interface(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print(f"[batch-guided] Starting Guided Batch Interface on {host}:{port}")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, batch_guided=True)
+    launch_streamlit_unified(
+        host=host,
+        port=port,
+        no_browser=no_browser,
+        batch_guided=True,
+        config=config,
+    )
 
 
-def launch_all_interfaces(host: str, port: int, no_browser: bool) -> None:
+def launch_all_interfaces(host: str, port: int, no_browser: bool, config: Optional[Path] = None) -> None:
     print("[all-interfaces] Deprecated: launching unified Streamlit app instead.")
-    launch_streamlit_unified(host=host, port=port, no_browser=no_browser)
+    launch_streamlit_unified(host=host, port=port, no_browser=no_browser, config=config)
 
 
 def main() -> int:
@@ -196,10 +245,10 @@ def main() -> int:
         run_demo(args.skip_install, args.upgrade, args.open_preview)
     elif args.mode == "guided":
         install_dependencies(args.skip_install, args.upgrade)
-        launch_guided_interface(args.host, args.port, args.no_browser)
+        launch_guided_interface(args.host, args.port, args.no_browser, config=args.config)
     elif args.mode == "batch-guided":
         install_dependencies(args.skip_install, args.upgrade)
-        launch_batch_guided_interface(args.host, args.port, args.no_browser)
+        launch_batch_guided_interface(args.host, args.port, args.no_browser, config=args.config)
     else:
         run_ui(
             args.skip_install,
@@ -208,8 +257,9 @@ def main() -> int:
             args.port,
             args.no_browser,
             ui_backend=args.ui_backend,
-            guided=False,
-            batch_guided=False,
+            guided=args.guided_ui,
+            batch_guided=args.batch_guided_ui,
+            config=args.config,
         )
 
     return 0
